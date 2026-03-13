@@ -1,0 +1,38 @@
+{
+  "name": "cubefsrs2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome lint .",
+    "format": "biome format .",
+    "format:write": "biome format --write ."
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.14.0",
+    "@types/web-bluetooth": "^0.0.21",
+    "chart.js": "^4.4.1",
+    "cubing": "^0.58.2",
+    "date-fns": "^3.6.0",
+    "firebase": "^10.14.0",
+    "gan-web-bluetooth": "^3.0.2",
+    "lodash-es": "^4.17.21",
+    "solid-js": "^1.9.3",
+    "ts-fsrs": "^5.2.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^22.7.5",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.8",
+    "vite-plugin-solid": "^2.10.2"
+  }
+}
