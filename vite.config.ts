@@ -1,5 +1,5 @@
-import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import { viteStaticCopy } from "vite-plugin-static-copy";
