@@ -3,14 +3,7 @@ import { createStore } from "solid-js/store";
 import defaults from "@/data/defaultAlgs.json";
 import { getDb, schema } from "@/lib/db/client-sqlite";
 import { getCurrentUserId } from "@/lib/db/db-state";
-import { safeGet, safeSet } from "@/services/persistence/localStorage";
 import type { AlgCase, AlgCatalog, AlgCategory } from "@/types/algs";
-
-const STORAGE_KEY = "cubedex.algs.catalog.v1";
-const SELECTED_KEY = "cubedex.algs.selected.v1";
-const CATEGORY_KEY = "cubedex.algs.category.v1";
-const OPTIONS_KEY = "cubedex.algs.options.v1";
-const CASES_KEY = "cubedex.algs.cases.v1";
 
 type LibraryOptions = {
 	randomAUF: boolean;
@@ -27,39 +20,17 @@ type AlgsState = {
 	options: LibraryOptions;
 };
 
-function loadFromStorage(): AlgCatalog | null {
-	try {
-		const raw = localStorage.getItem(STORAGE_KEY);
-		return raw ? (JSON.parse(raw) as AlgCatalog) : null;
-	} catch {
-		return null;
-	}
-}
-
-function saveToStorage(catalog: AlgCatalog) {
-	try {
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(catalog));
-	} catch {}
-}
-
-function loadCasesFromStorage(): Record<string, AlgCase> {
-	return safeGet<Record<string, AlgCase>>(CASES_KEY, {});
-}
-function saveCasesToStorage(cases: Record<string, AlgCase>) {
-	safeSet(CASES_KEY, cases);
-}
-
 const [algs, setAlgs] = createStore<AlgsState>({
 	catalog: { categories: [] },
 	cases: {},
-	selectedIds: safeGet<string[]>(SELECTED_KEY, []),
-	currentCategory: safeGet<string>(CATEGORY_KEY, ""),
-	options: safeGet<LibraryOptions>(OPTIONS_KEY, {
+	selectedIds: [],
+	currentCategory: "",
+	options: {
 		randomAUF: false,
 		randomOrder: false,
 		slowFirst: false,
 		prioritizeFailed: false,
-	}),
+	},
 });
 
 export { algs, setAlgs };
@@ -129,25 +100,19 @@ export function buildCatalogFromDefaults(): {
 	return { catalog: { categories }, cases };
 }
 
+// Pre-populate with defaults so the UI renders before sign-in; DB data
+// loaded in onSignIn will overwrite these values.
 export function initAlgs() {
 	const { catalog, cases } = buildCatalogFromDefaults();
-	const stored = loadFromStorage();
-	const storedCases = loadCasesFromStorage();
-	const merged: Record<string, AlgCase> = { ...cases };
-	for (const id of Object.keys(storedCases)) {
-		if (merged[id]) merged[id] = { ...merged[id], ...storedCases[id] };
-		else merged[id] = storedCases[id];
-	}
-	setAlgs("catalog", stored ?? catalog);
-	setAlgs("cases", merged);
-	if (!algs.currentCategory && algs.catalog.categories.length > 0) {
-		setAlgs("currentCategory", algs.catalog.categories[0]?.name ?? "");
+	setAlgs("catalog", catalog);
+	setAlgs("cases", cases);
+	if (!algs.currentCategory && catalog.categories.length > 0) {
+		setAlgs("currentCategory", catalog.categories[0]?.name ?? "");
 	}
 }
 
 export function setCategory(name: string) {
 	setAlgs("currentCategory", name);
-	safeSet(CATEGORY_KEY, name);
 	// Persist current category to SQLite
 	void (async () => {
 		const db = getDb();
@@ -174,7 +139,6 @@ export function setCategory(name: string) {
 
 export function setOptions(opts: Partial<LibraryOptions>) {
 	setAlgs("options", { ...algs.options, ...opts });
-	safeSet(OPTIONS_KEY, algs.options);
 	// Persist lib options to SQLite
 	void (async () => {
 		const db = getDb();
@@ -204,7 +168,6 @@ export function toggleCase(id: string) {
 	} else {
 		setAlgs("selectedIds", [...algs.selectedIds, id]);
 	}
-	safeSet(SELECTED_KEY, algs.selectedIds);
 	// Persist selection change to SQLite
 	void (async () => {
 		const db = getDb();
@@ -235,7 +198,6 @@ export function selectSubset(name: string) {
 	if (!subset) return;
 	const toAdd = subset.caseIds.filter((id) => !algs.selectedIds.includes(id));
 	setAlgs("selectedIds", [...algs.selectedIds, ...toAdd]);
-	safeSet(SELECTED_KEY, algs.selectedIds);
 	// Persist bulk selection to SQLite
 	void (async () => {
 		const db = getDb();
@@ -261,7 +223,6 @@ export function deselectSubset(name: string) {
 		"selectedIds",
 		algs.selectedIds.filter((id) => !remove.has(id)),
 	);
-	safeSet(SELECTED_KEY, algs.selectedIds);
 	// Persist bulk deselection to SQLite
 	void (async () => {
 		const db = getDb();
@@ -311,8 +272,6 @@ export function createCase(
 	const newCases = { ...algs.cases, [id]: { ...base, ...payload } as AlgCase };
 	setAlgs("catalog", { categories: cats });
 	setAlgs("cases", newCases);
-	saveToStorage({ categories: cats });
-	saveCasesToStorage(newCases);
 	// Persist user-owned case to SQLite
 	void (async () => {
 		const db = getDb();
@@ -351,7 +310,6 @@ export function updateCase(id: string, patch: Partial<AlgCase>) {
 	const next = { ...existing, ...patch } as AlgCase;
 	const newCases = { ...algs.cases, [id]: next };
 	setAlgs("cases", newCases);
-	saveCasesToStorage(newCases);
 	// Persist annotation fields to SQLite (recognition, mnemonic, notes)
 	void (async () => {
 		const db = getDb();
@@ -405,9 +363,6 @@ export function deleteCase(id: string) {
 		"selectedIds",
 		algs.selectedIds.filter((sid) => sid !== id),
 	);
-	saveToStorage({ categories: cats });
-	saveCasesToStorage(newCases);
-	safeSet(SELECTED_KEY, algs.selectedIds);
 	// Delete user-owned case from SQLite (global catalog rows are not deletable by users)
 	void (async () => {
 		const db = getDb();
@@ -440,15 +395,8 @@ export function deleteCase(id: string) {
 
 export function resetToDefaults() {
 	const { catalog, cases } = buildCatalogFromDefaults();
-	const storedCases = loadCasesFromStorage();
-	const merged: Record<string, AlgCase> = { ...cases };
-	for (const id of Object.keys(storedCases)) {
-		if (merged[id]) merged[id] = { ...merged[id], ...storedCases[id] };
-	}
 	setAlgs("catalog", catalog);
-	setAlgs("cases", merged);
-	saveToStorage(catalog);
-	saveCasesToStorage(merged);
+	setAlgs("cases", cases);
 	if (!algs.currentCategory && catalog.categories.length) {
 		setAlgs("currentCategory", catalog.categories[0]?.name ?? "");
 	}
@@ -484,18 +432,13 @@ export function updateFromDefaults() {
 	for (const cat of newCatalog.categories) {
 		for (const subset of cat.subsets) {
 			for (const id of subset.caseIds) {
-				if (!(id in minCases)) minCases[id] = { id, name: id, alg: "" };
+				if (!(id in minCases))
+					minCases[id] = algs.cases[id] ?? { id, name: id, alg: "" };
 			}
 		}
 	}
-	const storedCases = loadCasesFromStorage();
-	for (const id of Object.keys(storedCases)) {
-		if (minCases[id]) minCases[id] = { ...minCases[id], ...storedCases[id] };
-	}
 	setAlgs("catalog", newCatalog);
 	setAlgs("cases", minCases);
-	saveToStorage(newCatalog);
-	saveCasesToStorage(minCases);
 }
 
 export function importFromJson(json: string) {
@@ -506,18 +449,13 @@ export function importFromJson(json: string) {
 	for (const cat of parsed.categories) {
 		for (const subset of cat.subsets) {
 			for (const id of subset.caseIds) {
-				if (!(id in cases)) cases[id] = { id, name: id, alg: "" };
+				// Preserve any in-memory state (e.g., annotations loaded from DB)
+				cases[id] = algs.cases[id] ?? { id, name: id, alg: "" };
 			}
 		}
 	}
-	const storedCases = loadCasesFromStorage();
-	for (const id of Object.keys(storedCases)) {
-		if (cases[id]) cases[id] = { ...cases[id], ...storedCases[id] };
-	}
 	setAlgs("catalog", parsed);
 	setAlgs("cases", cases);
-	saveToStorage(parsed);
-	saveCasesToStorage(cases);
 }
 
 export function exportToJson(): string {

@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { createStore } from "solid-js/store";
 import { getDb, schema } from "@/lib/db/client-sqlite";
 import { getCurrentUserId } from "@/lib/db/db-state";
-import { safeGet, safeSet } from "@/services/persistence/localStorage";
 import type { FSRSState, Rating } from "@/services/scheduler/fsrs";
 import {
 	createInitialState,
@@ -13,8 +12,6 @@ import {
 	reconfigureFsrs,
 } from "@/services/scheduler/fsrs";
 import { algs } from "@/stores/algs";
-
-const STORAGE_KEY = "cubedex.fsrs.states.v1";
 
 type FsrsState = {
 	params: FsrsUserParams;
@@ -32,12 +29,8 @@ export { fsrs, setFsrs };
 
 export function initFsrs() {
 	setFsrs("params", getFsrsConfig());
-	setFsrs("states", safeGet<Record<string, FSRSState>>(STORAGE_KEY, {}));
+	setFsrs("states", {});
 	refreshQueue();
-}
-
-function saveFsrs() {
-	safeSet(STORAGE_KEY, fsrs.states);
 }
 
 export function applyParams(p: Partial<FsrsUserParams>) {
@@ -64,7 +57,6 @@ export function applyParams(p: Partial<FsrsUserParams>) {
 export function clearReviews() {
 	setFsrs("states", {});
 	setFsrs("queue", []);
-	saveFsrs();
 	// Delete all card states from SQLite
 	void (async () => {
 		const db = getDb();
@@ -79,7 +71,6 @@ export function clearReviews() {
 export function ensureCard(id: string) {
 	if (!fsrs.states[id]) {
 		setFsrs("states", { ...fsrs.states, [id]: createInitialState(Date.now()) });
-		saveFsrs();
 		// Persist new card to SQLite
 		void (async () => {
 			const db = getDb();
@@ -137,7 +128,6 @@ export function reviewCase(id: string, rating: Rating) {
 	const now = Date.now();
 	const res = fsrsReview(prev, rating, now);
 	setFsrs("states", { ...fsrs.states, [id]: res.state });
-	saveFsrs();
 	refreshQueue();
 	// Persist updated card state to SQLite
 	void (async () => {

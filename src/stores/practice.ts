@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { createStore } from "solid-js/store";
 import { getDb, schema } from "@/lib/db/client-sqlite";
 import { getCurrentUserId } from "@/lib/db/db-state";
-import { safeGet, safeSet } from "@/services/persistence/localStorage";
 import { algs } from "@/stores/algs";
 
 export type AlgorithmVisibility = "full" | "obscured" | "hidden";
@@ -29,17 +28,11 @@ const [practice, setPractice] = createStore<PracticeState>({
 	currentId: null,
 	running: false,
 	startAt: null,
-	timesById: safeGet<Record<string, TimeEntry[]>>(
-		"cubedex.practice.times.v1",
-		{},
-	),
+	timesById: {},
 	visibility: "full",
 	history: [],
 	historyIndex: -1,
-	orderMode: (() => {
-		const v = localStorage.getItem("cubedex.practice.order");
-		return v === "sequential" || v === "random" || v === "fsrs" ? v : "fsrs";
-	})() as PracticeState["orderMode"],
+	orderMode: "fsrs",
 });
 
 export { practice, setPractice };
@@ -59,15 +52,8 @@ export function bestMs(): number {
 	return arr.length ? Math.min(...arr.map((t) => t.ms)) : 0;
 }
 
-export function saveTimes() {
-	safeSet("cubedex.practice.times.v1", practice.timesById);
-}
-
 export function setOrderMode(mode: PracticeState["orderMode"]) {
 	setPractice("orderMode", mode);
-	try {
-		localStorage.setItem("cubedex.practice.order", mode);
-	} catch {}
 	// Persist order mode to SQLite user_settings
 	void (async () => {
 		const db = getDb();
@@ -137,7 +123,6 @@ export function stopPractice() {
 		if (arr.length > 100) arr.length = 100;
 		const newTimesById = { ...practice.timesById, [practice.currentId]: arr };
 		setPractice("timesById", newTimesById);
-		saveTimes();
 		// Persist time entry to SQLite
 		const caseId = practice.currentId;
 		const entryMs = ms;
@@ -184,7 +169,6 @@ export function clearTimes(id?: string) {
 	} else {
 		setPractice("timesById", {});
 	}
-	saveTimes();
 	// Delete time entries from SQLite
 	void (async () => {
 		const db = getDb();

@@ -15,6 +15,8 @@ import { setFsrs } from "@/stores/fsrs";
 import { setPractice } from "@/stores/practice";
 import type { AlgCase, AlgCategory } from "@/types/algs";
 
+// Valid values for the practice order mode (mirrors PracticeState["orderMode"])
+type OrderMode = "sequential" | "random" | "fsrs";
 /**
  * Load the full catalog + user selections + annotations from SQLite into
  * the algs store.
@@ -276,6 +278,14 @@ export async function loadUserSettingsFromDb(
 			.limit(1);
 		if (catRows[0]?.name) {
 			setAlgs("currentCategory", catRows[0].name);
+		}
+	}
+
+	// Load practice order mode
+	if (row.orderMode) {
+		const mode = row.orderMode as string;
+		if (mode === "sequential" || mode === "random" || mode === "fsrs") {
+			setPractice("orderMode", mode as OrderMode);
 		}
 	}
 }
