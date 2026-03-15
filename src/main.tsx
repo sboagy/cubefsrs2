@@ -2,6 +2,8 @@ import { render } from "solid-js/web";
 import { Router, Route } from "@solidjs/router";
 import { lazy } from "solid-js";
 import App from "./App";
+import CubeAuthProvider from "@/components/auth/CubeAuthProvider";
+import LoginView from "@/views/LoginView";
 import "./styles/tailwind.css";
 import { initAlgs } from "@/stores/algs";
 import { initFsrs } from "@/stores/fsrs";
@@ -19,15 +21,20 @@ initFsrs();
 const root = document.getElementById("app");
 if (!root) throw new Error("#app element not found");
 render(
-  () => (
-    <Router root={App}>
-      <Route path="/" component={PracticeView} />
-      <Route path="/new" component={NewAlgView} />
-      <Route path="/options" component={OptionsView} />
-      <Route path="/help" component={HelpView} />
-      <Route path="/library" component={AlgLibraryView} />
-      <Route path="/build" component={BuildView} />
-    </Router>
-  ),
-  root,
+	() => (
+		// CubeAuthProvider wraps the Router so auth context (useAuth) is available
+		// both on the /login page and inside the app layout (ProtectedRoute, Sidebar).
+		<CubeAuthProvider>
+			<Router root={App}>
+				<Route path="/login" component={LoginView} />
+				<Route path="/" component={PracticeView} />
+				<Route path="/new" component={NewAlgView} />
+				<Route path="/options" component={OptionsView} />
+				<Route path="/help" component={HelpView} />
+				<Route path="/library" component={AlgLibraryView} />
+				<Route path="/build" component={BuildView} />
+			</Router>
+		</CubeAuthProvider>
+	),
+	root,
 );

@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { orientationMode, setOrientationMode } from "@/stores/orientation";
-import { settings, setDark, setGyroAnimation, setControlPanel, setAllowDrag, setMirrorStickers, setFlashingIndicator, setShowCaseName, setBackview, setVisualization } from "@/stores/settings";
+import { settings, setTheme, setGyroAnimation, setControlPanel, setAllowDrag, setMirrorStickers, setFlashingIndicator, setShowCaseName, setBackview, setVisualization } from "@/stores/settings";
+import type { ThemeMode } from "@/stores/settings";
 import { applyParams, clearReviews } from "@/stores/fsrs";
 import { getFsrsConfig, type FsrsUserParams } from "@/services/scheduler/fsrs";
 import { device, connectDevice, disconnectDevice, setAutoReconnect } from "@/stores/device";
@@ -62,14 +63,24 @@ export default function OptionsView() {
       <section class="space-y-2">
         <h2 class="text-lg font-medium">UI &amp; Visualization</h2>
         <div class="grid md:grid-cols-2 gap-2 max-w-2xl">
-          <label class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={settings.dark}
-              onChange={(e) => setDark((e.target as HTMLInputElement).checked)}
-            />
-            Dark Mode
-          </label>
+          <div class="flex flex-col gap-1">
+            <span class="text-sm font-medium">Theme</span>
+            <div class="flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden w-fit">
+              {(["light", "system", "dark"] as ThemeMode[]).map((mode) => (
+                <button
+                  type="button"
+                  class={`px-3 py-1.5 text-sm capitalize transition-colors ${
+                    settings.theme === mode
+                      ? "bg-blue-600 text-white"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                  onClick={() => setTheme(mode)}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
           <label class="flex items-center gap-2">
             <input
               type="checkbox"

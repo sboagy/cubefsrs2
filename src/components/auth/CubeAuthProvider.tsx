@@ -19,6 +19,10 @@ import { algs } from "@/stores/algs";
 
 // Holds the stop function returned by startSyncWorker; cleared on sign-out.
 let stopSync: (() => void) | null = null;
+// Tracks the user ID for the currently-running sync session so that a
+// duplicate onSignIn call (getSession() races with onAuthStateChange) is
+// detected and silently no-ops instead of creating a second SyncEngine.
+let syncSessionUserId: string | null = null;
 
 /**
  * App-level auth provider for CubeFSRS.
@@ -38,6 +42,25 @@ const CubeAuthProvider: ParentComponent = (props) => {
 		<AuthProvider
 			supabaseClient={client}
 			onSignIn={async (user) => {
+				// Guard against duplicate onSignIn calls for the same user.
+				// Supabase fires both getSession() and onAuthStateChange(SIGNED_IN)
+				// near-simultaneously on page load; the second call must be a no-op
+				// to avoid creating an orphaned SyncEngine whose timers later run
+				// against a closed sql.js database and produce "out of memory" errors.
+				//
+				// We check syncSessionUserId ONLY (not stopSync) because both calls
+				// can arrive before startSyncWorker returns and sets stopSync. The
+				// assignment below is synchronous and runs before the first await, so
+				// any second concurrent call will see syncSessionUserId already set.
+				if (syncSessionUserId === user.id) {
+					return;
+				}
+
+				// Stop any previous sync session (different user or leftover timers).
+				stopSync?.();
+				stopSync = null;
+				syncSessionUserId = user.id;
+
 				try {
 					// 1. Initialise per-user SQLite DB (runs migrations if needed)
 					await initializeDb(user.id);
@@ -98,6 +121,7 @@ const CubeAuthProvider: ParentComponent = (props) => {
 				// Stop background sync before tearing down the DB
 				stopSync?.();
 				stopSync = null;
+				syncSessionUserId = null;
 
 				setDbReady(false);
 				setCurrentUserId(null);
