@@ -6,7 +6,7 @@
  */
 
 import { createBrowserSyncRuntime } from "oosync/runtime/browser-sqlite";
-import { type SyncRuntime, setSyncRuntime } from "@oosync/sync";
+import { type SyncRuntime, setSyncRuntime } from "oosync/sync";
 import * as localSchema from "../../../drizzle/schema-sqlite";
 import { browserSqliteClient } from "../db/client-sqlite";
 import {
