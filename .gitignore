@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 src/node_modules
 dist
+.yalc/
+yalc.lock
 dist-ssr
 *.local
 
