@@ -1,5 +1,5 @@
-import { AuthProvider } from "@rhizome/core";
-import type { ParentComponent } from "solid-js";
+import { AuthProvider, type LocalDatabase } from "@rhizome/core";
+import { createSignal, type ParentComponent } from "solid-js";
 import {
 	needsCatalogSeed,
 	seedCatalogFromDefaults,
@@ -13,12 +13,14 @@ import {
 	loadPracticeFromDb,
 	loadUserSettingsFromDb,
 } from "@/lib/db/store-loaders";
-import { startSyncWorker } from "@/lib/sync";
+import { type SyncService, startSyncWorker } from "@/lib/sync";
 import { getSupabaseClient } from "@/services/supabase";
 import { algs } from "@/stores/algs";
 
 // Holds the stop function returned by startSyncWorker; cleared on sign-out.
 let stopSync: (() => void) | null = null;
+// The SyncService instance for the current session; used by forceSyncDown/forceSyncUp.
+let syncService: SyncService | null = null;
 // Tracks the user ID for the currently-running sync session so that a
 // duplicate onSignIn call (getSession() races with onAuthStateChange) is
 // detected and silently no-ops instead of creating a second SyncEngine.
@@ -32,6 +34,35 @@ let syncSessionUserId: string | null = null;
  */
 const CubeAuthProvider: ParentComponent = (props) => {
 	const client = getSupabaseClient();
+
+	// Reactive sync state — passed to AuthProvider so shared components
+	// (DbStatusDropdown, DatabaseBrowser) can read/invoke them via useAuth().
+	const [localDb, setLocalDb] = createSignal<LocalDatabase | null>(null);
+	const [lastSyncTimestamp, setLastSyncTimestamp] = createSignal<string | null>(
+		null,
+	);
+	const [lastSyncMode, setLastSyncMode] = createSignal<
+		"full" | "incremental" | null
+	>(null);
+
+	/** Delegate force sync-down to the module-level SyncService instance. */
+	const forceSyncDown = async (opts?: { full?: boolean }) => {
+		if (!syncService) return;
+		if (opts?.full) {
+			await syncService.forceFullSyncDown();
+		} else {
+			await syncService.syncDown();
+		}
+		const ts = syncService.getLastSyncDownTimestamp();
+		if (ts) setLastSyncTimestamp(ts);
+		setLastSyncMode(syncService.getLastSyncMode());
+	};
+
+	/** Delegate force sync-up to the module-level SyncService instance. */
+	const forceSyncUp = async (opts?: { allowDeletes?: boolean }) => {
+		if (!syncService) return;
+		await syncService.syncUp(opts);
+	};
 
 	if (!client) {
 		// Supabase not configured — render without auth (offline / dev mode)
@@ -97,7 +128,7 @@ const CubeAuthProvider: ParentComponent = (props) => {
 					// 6. Start background sync between local SQLite and Supabase
 					const supabase = getSupabaseClient();
 					if (supabase) {
-						const { stop } = startSyncWorker(db, {
+						const { stop, service } = startSyncWorker(db, {
 							supabase,
 							userId: user.id,
 							syncIntervalMs: 5000,
@@ -109,9 +140,18 @@ const CubeAuthProvider: ParentComponent = (props) => {
 										result.errors,
 									);
 								}
+								// Update timestamp signals so DbStatusDropdown reflects latest state
+								if (syncService) {
+									const ts = syncService.getLastSyncDownTimestamp();
+									if (ts) setLastSyncTimestamp(ts);
+									setLastSyncMode(syncService.getLastSyncMode());
+								}
 							},
 						});
 						stopSync = stop;
+						syncService = service;
+						// Cast: SqliteDatabase satisfies LocalDatabase's all<T>() interface.
+						setLocalDb(db as unknown as LocalDatabase);
 					}
 				} catch (err) {
 					console.error("[CubeAuthProvider] onSignIn DB init failed:", err);
@@ -121,7 +161,13 @@ const CubeAuthProvider: ParentComponent = (props) => {
 				// Stop background sync before tearing down the DB
 				stopSync?.();
 				stopSync = null;
+				syncService = null;
 				syncSessionUserId = null;
+
+				// Clear reactive sync state
+				setLocalDb(null);
+				setLastSyncTimestamp(null);
+				setLastSyncMode(null);
 
 				setDbReady(false);
 				setCurrentUserId(null);
@@ -130,6 +176,13 @@ const CubeAuthProvider: ParentComponent = (props) => {
 				} catch (err) {
 					console.error("[CubeAuthProvider] onSignOut closeDb failed:", err);
 				}
+			}}
+			syncState={{
+				localDb,
+				forceSyncDown,
+				forceSyncUp,
+				lastSyncTimestamp,
+				lastSyncMode,
 			}}
 		>
 			{props.children}

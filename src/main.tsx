@@ -1,10 +1,12 @@
-import { render } from "solid-js/web";
-import { Router, Route } from "@solidjs/router";
+import { Route, Router } from "@solidjs/router";
 import { lazy } from "solid-js";
-import App from "./App";
+import { render } from "solid-js/web";
 import CubeAuthProvider from "@/components/auth/CubeAuthProvider";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import LoginView from "@/views/LoginView";
+import App from "./App";
 import "./styles/tailwind.css";
+import { DatabaseBrowser } from "@rhizome/core";
 import { initAlgs } from "@/stores/algs";
 import { initFsrs } from "@/stores/fsrs";
 
@@ -33,6 +35,14 @@ render(
 				<Route path="/help" component={HelpView} />
 				<Route path="/library" component={AlgLibraryView} />
 				<Route path="/build" component={BuildView} />
+				<Route
+					path="/debug/db"
+					component={() => (
+						<ProtectedRoute>
+							<DatabaseBrowser />
+						</ProtectedRoute>
+					)}
+				/>
 			</Router>
 		</CubeAuthProvider>
 	),

@@ -1,7 +1,7 @@
+import { DbStatusDropdown, useAuth } from "@rhizome/core";
 import { A, useNavigate } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
-import { useAuth } from "@rhizome/core";
-import { device, connectDevice, disconnectDevice } from "@/stores/device";
+import { connectDevice, device, disconnectDevice } from "@/stores/device";
 
 export default function Sidebar() {
 	const { user, isAnonymous, signOut } = useAuth();
@@ -38,7 +38,7 @@ export default function Sidebar() {
 				<img src="/favicon.svg" alt="" class="w-7 h-7" aria-hidden="true" />
 				<span class="text-lg font-semibold">CubeFSRS</span>
 			</div>
-			<nav class="flex flex-col gap-1">
+			<nav class="flex flex-col gap-1 flex-1">
 				<A class="btn" href="/" end>
 					Practice
 				</A>
@@ -74,14 +74,19 @@ export default function Sidebar() {
 				<div class="text-sm text-gray-500">
 					Device:{" "}
 					<span class={device.connected ? "text-green-600" : "opacity-80"}>
-						{device.connected ? device.info.name || "connected" : "not connected"}
+						{device.connected
+							? device.info.name || "connected"
+							: "not connected"}
 					</span>
-					{device.info.battery != null && <span> · {device.info.battery}%</span>}
+					{device.info.battery != null && (
+						<span> · {device.info.battery}%</span>
+					)}
 				</div>
 			</div>
 
 			{/* User menu — pinned to bottom of sidebar */}
-			<div class="mt-auto pt-2 border-t border-gray-200 dark:border-gray-800 relative">
+			<div class="flex flex-col gap-0">
+				<div class="pt-2 border-t border-gray-200 dark:border-gray-800 relative">
 				<Show when={user() || isAnonymous()}>
 					{/* Trigger button */}
 					<button
@@ -102,9 +107,7 @@ export default function Sidebar() {
 							{avatarLetter()}
 						</div>
 						<span class="flex-1 text-left truncate font-medium">
-							{isAnonymous()
-								? "Device Only"
-								: (user()?.email ?? "Signed in")}
+							{isAnonymous() ? "Device Only" : (user()?.email ?? "Signed in")}
 						</span>
 						{/* Chevron rotates when open */}
 						<svg
@@ -228,9 +231,13 @@ export default function Sidebar() {
 							aria-hidden="true"
 						/>
 					</Show>
-				</Show>
+					</Show>
+				</div>
+			</div>
+			{/* DB / sync status dropdown — very bottom of sidebar */}
+			<div class="pt-2 border-t border-gray-200 dark:border-gray-800">
+				<DbStatusDropdown />
 			</div>
 		</div>
 	);
 }
-

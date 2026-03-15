@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
+    "@cloudflare/workers-types": "^4.20260313.1",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^22.7.5",
     "@types/sql.js": "^1.4.9",
